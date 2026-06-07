@@ -313,6 +313,8 @@ class StegoApp(TkinterDnDCTk):
             payload_size = self.hidden_file_size if self.hidden_file_path else 0
         elif ptype == "Audio":
             payload_size = self.hidden_audio_size if self.hidden_audio_path else 0
+        elif ptype == "File":
+            payload_size = self.hidden_generic_size if self.hidden_generic_path else 0
             
         ratio = payload_size / self.encode_capacity
         if ratio > 1:
@@ -335,6 +337,9 @@ class StegoApp(TkinterDnDCTk):
         self.hidden_audio_path = None
         self.hidden_audio_size = 0
         self.audio_player = None
+        
+        self.hidden_generic_path = None
+        self.hidden_generic_size = 0
         
         top_frame = ctk.CTkFrame(self.encode_frame, fg_color="transparent")
         top_frame.pack(fill="x", padx=20, pady=5)
@@ -372,7 +377,7 @@ class StegoApp(TkinterDnDCTk):
         
         # Payload Type Selection
         self.payload_type = ctk.StringVar(value="Text")
-        seg_button = ctk.CTkSegmentedButton(self.encode_frame, values=["Text", "Image", "Audio"], variable=self.payload_type, command=self.toggle_payload_ui)
+        seg_button = ctk.CTkSegmentedButton(self.encode_frame, values=["Text", "Image", "Audio", "File"], variable=self.payload_type, command=self.toggle_payload_ui)
         seg_button.pack(pady=5)
         
         self.input_container = ctk.CTkFrame(self.encode_frame, fg_color="transparent")
@@ -390,6 +395,10 @@ class StegoApp(TkinterDnDCTk):
         # Audio UI
         self.btn_sel_audio = ctk.CTkButton(self.input_container, text="Select Audio to Hide", command=self.select_hidden_audio)
         self.lbl_sel_audio = ctk.CTkLabel(self.input_container, text="")
+        
+        # File UI
+        self.btn_sel_file = ctk.CTkButton(self.input_container, text="Select File to Hide", command=self.select_hidden_file)
+        self.lbl_sel_file = ctk.CTkLabel(self.input_container, text="")
         
         self.toggle_payload_ui("Text") # default
         
@@ -438,6 +447,9 @@ class StegoApp(TkinterDnDCTk):
             self.lbl_sel_audio.pack()
             if self.audio_player:
                 self.audio_player.pack(pady=5)
+        elif value == "File":
+            self.btn_sel_file.pack(pady=5)
+            self.lbl_sel_file.pack()
         self.update_capacity_meter()
             
     def select_hidden_image(self):
@@ -459,6 +471,14 @@ class StegoApp(TkinterDnDCTk):
                 self.audio_player.destroy()
             self.audio_player = AudioPlayer(self.input_container, fp, os.path.basename(fp))
             self.audio_player.pack(pady=5)
+            self.update_capacity_meter()
+
+    def select_hidden_file(self):
+        fp = filedialog.askopenfilename(parent=self, title="Select File to Hide", filetypes=[("All Files", "*.*")])
+        if fp:
+            self.hidden_generic_path = fp
+            self.hidden_generic_size = os.path.getsize(fp)
+            self.lbl_sel_file.configure(text=f"{os.path.basename(fp)} ({self.hidden_generic_size} bytes)")
             self.update_capacity_meter()
 
     def perform_encode(self):
@@ -492,6 +512,14 @@ class StegoApp(TkinterDnDCTk):
                 payload_bytes = f.read()
             filename = os.path.basename(self.hidden_audio_path)
             header = f"AUDIO:{filename}|".encode('utf-8')
+        elif ptype == "File":
+            if not self.hidden_generic_path:
+                ToastNotification(self, "Please select a file to hide!", color="#e74c3c")
+                return
+            with open(self.hidden_generic_path, "rb") as f:
+                payload_bytes = f.read()
+            filename = os.path.basename(self.hidden_generic_path)
+            header = f"FILE:{filename}|".encode('utf-8')
             
         if self.use_encryption.get() or self.encode_scheme.get() == "Randomized Scattering":
             pwd = self.ent_enc_pass.get()
@@ -707,10 +735,29 @@ class StegoApp(TkinterDnDCTk):
             btn_save.pack(pady=5)
             ToastNotification(self, "Audio extracted successfully!")
         else:
-            # Fallback for old FILE: format
+            # Generic FILE: format
             filename = header.replace("FILE:", "").replace(":ENC", "")
-            btn_save = ctk.CTkButton(self.preview_container, text=f"Save File ({filename})", command=lambda: self.save_payload(payload, filename))
-            btn_save.pack(pady=20)
+            
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in ['.pdf']: file_type = "PDF Document"
+            elif ext in ['.zip', '.rar', '.7z']: file_type = "Archive File"
+            elif ext in ['.exe']: file_type = "Executable File"
+            elif ext in ['.txt', '.csv', '.json', '.xml', '.md']: file_type = "Text/Data File"
+            elif ext in ['.doc', '.docx']: file_type = "Word Document"
+            elif ext in ['.xls', '.xlsx']: file_type = "Excel Spreadsheet"
+            else: file_type = f"{ext.upper().strip('.')} File" if ext else "Generic File"
+            
+            size_kb = len(payload) / 1024
+            
+            info_frame = ctk.CTkFrame(self.preview_container, fg_color=self.fg_panel, corner_radius=10)
+            info_frame.pack(pady=10, padx=20, fill="x")
+            
+            ctk.CTkLabel(info_frame, text=f"📄 {filename}", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(10, 5))
+            ctk.CTkLabel(info_frame, text=f"File Type: {file_type}", font=ctk.CTkFont(size=14)).pack()
+            ctk.CTkLabel(info_frame, text=f"File Size: {size_kb:.2f} KB", font=ctk.CTkFont(size=14)).pack(pady=(0, 10))
+
+            btn_save = ctk.CTkButton(self.preview_container, text=f"Save File", command=lambda: self.save_payload(payload, filename))
+            btn_save.pack(pady=10)
             ToastNotification(self, "File extracted successfully!")
 
     def setup_analyze_screen(self):
