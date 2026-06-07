@@ -4,7 +4,6 @@ A powerful, high-performance Image Steganography and Steganalysis application bu
 
 This suite allows you to hide secret messages and full files (like MP3s, JPEGs, PDFs) seamlessly inside image files using Least Significant Bit (LSB) embedding. It also features a fully-fledged mathematical Steganalysis Testbench to crack LSB images, and a highly advanced "Randomized Scattering" engine that leverages password-seeded PRNGs and AES encryption to completely defeat mathematical detection.
 
-![Stego Suite Interface](https://via.placeholder.com/800x400?text=Master+Stego+Suite)
 
 ## ✨ Features
 
